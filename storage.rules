@@ -1,0 +1,75 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to get user role
+    function getUserRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && getUserRole() == 'admin';
+    }
+    
+    function isTeacher() {
+      return request.auth != null && getUserRole() == 'teacher';
+    }
+    
+    function isSecretary() {
+      return request.auth != null && getUserRole() == 'secretary';
+    }
+
+    // Profile images - users can upload their own profile images
+    match /profile-images/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isAdmin() || isSecretary();
+    }
+
+    // Student files - admin, secretary, and teachers can manage (including temp files)
+    match /students/{studentId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isSecretary() || isTeacher();
+    }
+
+    // Student profile photos - admin, secretary, and teachers can manage
+    match /students/{studentId}/profile-photo/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isSecretary() || isTeacher();
+    }
+
+    // Student documents - admin and secretary can manage
+    match /student-documents/{studentId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isSecretary();
+    }
+
+    // Assignment files - teachers can upload, students can download
+    match /assignments/{assignmentId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isTeacher();
+    }
+
+    // Assignment submissions - students can upload their own submissions
+    match /assignment-submissions/{submissionId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // School documents - admin and secretary can manage
+    match /school-documents/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isSecretary();
+    }
+
+    // ID cards - admin and secretary can generate
+    match /id-cards/{type}/{id}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || isSecretary();
+    }
+
+    // Default rule - deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
